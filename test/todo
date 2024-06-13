@@ -1,0 +1,21 @@
+homogenizar fuente con angel y el respo de repo con angel
+icono mepresa en gris
+
+
+poner todos los filtro arriba (como esta el input de busqueda)
+
+filtros:
+- sourceData
+- regex
+- nacionalidad
+- edad multi slide
+- genero
+
+
+- 
+
+El resultaod no se mostrara en un selection_box sino como listado directo , estos al hacer click cambiaran el paciente que se muestra
+
+
+- corregir el interior para que si es menor del 25% ponga "Low Risk" en verde, por encima hasta 50% el valor en verde, or encima de 50 amarillo y por encima de 75 rojo y mensage "High Risk"(irar si este texto esta bien)
+
