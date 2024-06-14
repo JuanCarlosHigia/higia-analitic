@@ -1,22 +1,17 @@
+import streamlit as st
 from pymongo import MongoClient
 
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# db_client = MongoClient("mongodb://"+os.getenv("MONGO_HOST")+":"+str(os.getenv("MONGO_PORT")))
-mode_local = os.getenv("LOCAL_MODE")
-username=os.getenv("MONGO_USER")
-password=os.getenv("MONGO_PASS")
-mongo_uri=os.getenv("MONGO_URL")
+mode_local = st.secrets["LOCAL_MODE"]
+username=st.secrets["MONGO_USER"]
+password=st.secrets["MONGO_PASS"]
+mongo_uri=st.secrets["MONGO_URL"]
 if mode_local == "True":
-    db_client = MongoClient(os.getenv("MONGO_HOST_LOCAL"))
+    db_client = MongoClient(st.secrets["MONGO_HOST_LOCAL"])
 else:
     db_client = MongoClient("mongodb://"+username+":"+password+"@"+mongo_uri+":27017/local?authSource=admin")
 
-ddbb= db_client[os.getenv("SINTETICA")]
+ddbb= db_client[st.secrets["COLLECTION"]]
 
-mongoCollection = ddbb[os.getenv("MONGO_IACOLLECTION")]
+mongoCollection = ddbb[st.secrets["MONGO_IACOLLECTION"]]
 
 
