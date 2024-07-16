@@ -15,3 +15,9 @@ ddbb= db_client[st.secrets["COLLECTION"]]
 mongoCollection = ddbb[st.secrets["MONGO_IACOLLECTION"]]
 
 
+ddbpipeline = db_client[st.secrets["COLLECTION_PIPELINE"]]
+
+pipelineCollection = ddbpipeline[st.secrets["MONGO_PIPELINECOLLECTION"]]
+
+
+
