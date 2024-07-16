@@ -54,4 +54,13 @@ class MongoService():
         resList = list(res)
         return resList
     
+    def getTotalPatients(self):
+
+        res = self.collection.aggregate([{"$match":{"_id":"reporting"}},{ "$project": { "total_patients": 1, "nationality":1, "sources":1 }} ])
+        return list(res)
+    
+    def updatePipeline(self, total, nationality, sources):
+        self.collection.update_one({"_id":"reporting"},{'$set' :{"total_patients":total, "nationality":nationality, "sources":sources}}, True)
+        
+    
 

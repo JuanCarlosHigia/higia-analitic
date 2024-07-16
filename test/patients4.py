@@ -9,14 +9,13 @@ from files.ndc import  ndc
 from files.analytics import analytics
 import random
 from mongo.mongo_service import MongoService
-from mongo.mongo_connection import mongoCollection, pipelineCollection
+from mongo.mongo_connection import mongoCollection
 import math
 
 st.set_page_config(page_title="HIGIA", layout = "wide")
 
 # CONNECTION
 bbdd = MongoService(mongoCollection)
-pipeline = MongoService(pipelineCollection)
 
 # CSS
 
@@ -35,7 +34,6 @@ st.html("""
         </style>
         """)
 
-
 #SIDEBAR
 with st.sidebar:
     ## LOGO 
@@ -52,11 +50,11 @@ with st.sidebar:
         currentyear= getCurrentYear()
         minYear= currentyear- st.session_state.Age[0]
         maxYear=currentyear- st.session_state.Age[1]
-
-         # Init Status
-        pipeline_status = pipeline.getTotalPatients()
-        if len(pipeline_status) == 0:
-            totalList = bbdd.getTotalLists(st.session_state.patient_id_regex,-1, 0, st.session_state.nationality, st.session_state.source, minYear, maxYear, st.session_state.gender)
+        # totalList = bbdd.getTotalLists(st.session_state.patient_id_regex,-1, 0, st.session_state.nationality, st.session_state.source, minYear, maxYear, st.session_state.gender)
+        totalList = bbdd.getTotalLists(st.session_state.patient_id_regex,-1, 100, 
+                                                          st.session_state.nationality, st.session_state.source
+                                                          ,minYear, maxYear, st.session_state.gender)
+        if "total_Patients" not in st.session_state:
             nationalites= set()
             sources = set()
             for item in totalList:
@@ -66,39 +64,14 @@ with st.sidebar:
             nationalitesListClean= sorted([item for item in nationalitesList if item])
             nationalitesListClean.insert(0, "All")
             st.session_state.nationalites = list(nationalitesListClean)
-     
+
+            
             sourceList = list(sources)
             sourceListClean= [item for item in sourceList if item]
             sourceListClean.insert(0, "All")
             st.session_state.sources = sorted(list(sourceListClean))
 
-            pipeline.updatePipeline(len(totalList), list(nationalitesListClean),  sorted(list(sourceListClean))), 
-            st.session_state.total_Patients = len(totalList)
-        else:
-            st.session_state.nationalites = pipeline_status[0]["nationality"]
-            st.session_state.sources= pipeline_status[0]["sources"]
-            st.session_state.total_Patients = pipeline_status[0]["total_patients"]
-            
-
-        # if "total_Patients" not in st.session_state:
-        #     nationalites= set()
-        #     sources = set()
-        #     for item in totalList:
-        #         nationalites.add(item["geoLocationInfo"]["nationality"])
-        #         sources.add(item["sourceData"])
-        #     nationalitesList  = list(nationalites)
-        #     nationalitesListClean= sorted([item for item in nationalitesList if item])
-        #     nationalitesListClean.insert(0, "All")
-        #     st.session_state.nationalites = list(nationalitesListClean)
-
-            
-        #     sourceList = list(sources)
-        #     sourceListClean= [item for item in sourceList if item]
-        #     sourceListClean.insert(0, "All")
-        #     st.session_state.sources = sorted(list(sourceListClean))
-
-       
-        
+        st.session_state.total_Patients = len(totalList)
 
         st.session_state.nationalityIndex = st.session_state.nationalites.index(st.session_state.nationality)
         st.session_state.sourceIndex = st.session_state.sources.index(st.session_state.source)
@@ -212,44 +185,21 @@ if len(st.session_state.patients_list)>0:
     ## ENCOUNTERS_INFO
     encounters = patient["encounters"]
 
-    ## DIAGS_INFO AND IMC
+    ## DIAGS_INFO
 
     diags = set()
 
     for encounter in encounters:
         for key in encounter["DIAG"]:
             diags.add(str(key))
-        
-    # diabetes, dislipidemia, obesity, nash, kidney disease, heart disease
-    diagnosed= [False,False,False,False,False,False]
-    
-    def updateDiagnosed(keyGroup,diagnosed):
-        
-        if keyGroup=="O24" or keyGroup=="E08" or keyGroup=="E09" or keyGroup=="E010" or keyGroup=="E011" or keyGroup=="E013":
-            diagnosed[0] =True
-        elif keyGroup=="E78":
-            diagnosed[1] =True
-        elif keyGroup=="E66":
-            diagnosed[2] =True
-        elif keyGroup=="K75" or keyGroup=="K76":
-            diagnosed[3] =True
-        elif keyGroup=="N17" or keyGroup=="N18" or keyGroup=="N19" or keyGroup=="E08" or keyGroup=="N28":
-            diagnosed[4] =True
-        elif keyGroup=="I11" or keyGroup=="I13" or keyGroup=="I50" or keyGroup=="I09" or keyGroup=="I97" or keyGroup=="I20" or keyGroup=="I21" or keyGroup=="I22" or keyGroup=="I24" or keyGroup=="I25" or keyGroup=="414":
-            diagnosed[5] =True   
-        return diagnosed
-
 
     diagsText = ""
     for key in diags:
         if key in icd10:
-            diagnosed = updateDiagnosed(key[0:3], diagnosed)
             diagsText= diagsText+"\n"+str(key)+": "+icd10[key]
         elif key in icdGroup:
-            diagnosed = updateDiagnosed(key[0:3], diagnosed)
             diagsText= diagsText+"\n"+str(key)+": "+icdGroup[key]
         elif key in icd9:
-            diagnosed = updateDiagnosed(key[0:3], diagnosed)
             diagsText= diagsText+"\n"+str(key)+": "+icd9[key]
         else: 
             pass
@@ -258,6 +208,12 @@ if len(st.session_state.patients_list)>0:
 
     drugs = set()
 
+    for encounter in encounters:
+        for drug in encounter["MEDS"]:
+            if str(drug) != "0000":
+                drugs.add(str(drug))
+
+
     drugsText = ""
     for drug in drugs:
         drugsText= drugsText+"\n"+str(drug)+": "+ndc[drug]
@@ -265,8 +221,8 @@ if len(st.session_state.patients_list)>0:
     ## PREDICTIONS
     CInfo, CPredictions= st.columns([3 ,7])
     maxHeight = 823
-    #maxHeight = 623
     with CInfo:
+        #with st.container(border=True, height= 533):
         
         with st.container(border=True, height= maxHeight):
             st.subheader("Patient Info")
@@ -281,15 +237,35 @@ if len(st.session_state.patients_list)>0:
             st.text(drugsText)
 
     with CPredictions:
+        def getLabel(value):
+                if value > 0.25 and value < 0.75:
+                    newvalue= int(value*100)
 
+                    return str(newvalue)+"%"
+                elif value <= 0.25:
+                    return "LOW RISK"
+                else:
+                    return "HIGH RISK"
         with st.container(border=True, height= maxHeight):
             st.subheader("Predictions")
             # FALSE INFO FOR CIRCLES
             # diabetes
-            diabetesPercentaje = random.uniform(0.0, 1.0)
-    
+            diabetesPercentaje = random.uniform(0.8, 0.9)
+            noDiabetesPercentaje = 1-diabetesPercentaje
+
+           
+
+
+
+            diabetesPD = {
+                "category": ["diabetes", "noDiabetes"], 
+                "value": [diabetesPercentaje, noDiabetesPercentaje],
+                 "text": [getLabel(diabetesPercentaje), getLabel(diabetesPercentaje)]
+            }
+            
+
             # dislipidemia
-            dislipidemiaPercentaje = random.uniform(0.0, 1.0)
+            dislipedemiaPercentaje = random.uniform(0.0, 1.0)
 
             # obesity
             obesityPercentaje = random.uniform(0.0, 1.0)
@@ -306,8 +282,7 @@ if len(st.session_state.patients_list)>0:
             CDiabetes, CDislipidemia,CObesity = st.columns(3)
             CNash, CKidney, CHeart= st.columns(3)    
 
-            
-            def getPercentajePalette(value, textString=""):
+            def getPercentajePalette(value):
                 # PALETTE COLOURS
                 high="#f35261"
                 middel="#fbcd78"  
@@ -316,98 +291,82 @@ if len(st.session_state.patients_list)>0:
 
                 circleColor="#d5dbca"
 
-                if textString == "!Diagnosed":
-                    return [middel,middel]
-                elif textString == "!Undiagnosed":
-                    return [high,high]
-                elif value < 0.25:
+                if value < 0.25:
                     return [low, circleColor]
                 elif value < 0.5:
                     return [midlow, circleColor]
+                elif value < 0.75:
+                    return [middel, circleColor]
                 else:
                     return [high, circleColor]
-                
-    
-                    
             
-            def getText(value, dignoased):
-                if dignoased == True:
-                    return "!Diagnosed"
-                else:
-                    if value < 0.25:
-                        return "LOW RISK"
-                    elif value < 0.75:
-                        return str(int(value*100))+"%"
-                    else:
-                        return "HIGH RISK"
-                
-            def getTextColor(text):
+            def getPercentajePaletteText(value):
                 # PALETTE COLOURS
-                red="#f35261"
-                green = "#00b888"
+                high="#f35261"
+                middel="#fbcd78"  
+                midlow = "#00b888"
     
 
-                if text == "!Diagnosed" or text == "!Undiagnosed" or text == "HIGH RISK":
-                    return red
+
+                if value < 0.25:
+                    return [midlow, midlow]
+                elif value < 0.5:
+                    return [middel, middel]
+                elif value < 0.75:
+                    return [middel, middel]
                 else:
-                    if text == "LOW RISK":
-                        return green
-                        
-                    else:
-                        value = int(text[0:-1])
-                        if value < 50:
-                            return green
-                        else: 
-                            return red
+                    return [high, high]
+                
             
 
-            
+
             # diabetesPercentaje
             with CDiabetes:
                 if diabetesPercentaje > 0:
-                    diabetesSourceText={"text": [getText(diabetesPercentaje, diagnosed[0])]}
-                    textString= diabetesSourceText["text"][0]
-                    nodiabetesPercentaje = 1-diabetesPercentaje
-                    diabetesSource = {"category": ["diabetes", "nodiabetes"], "value": [diabetesPercentaje, nodiabetesPercentaje]}
-                    diabetesDataframe = pd.DataFrame(diabetesSource) 
-                    diabetesTextDataframe= pd.DataFrame(diabetesSourceText)
-                    percentajePalete = getPercentajePalette(diabetesPercentaje, textString)
+                
+                    diabetesPercentajeSource = pd.DataFrame(diabetesPD)
 
-                    diabetesBase = alt.Chart(diabetesDataframe).encode(
-                        alt.Theta("value:Q").stack(True),
-                        alt.Color("category:N", legend=None, scale=alt.Scale(range=percentajePalete))
+                    percentajePalete = getPercentajePalette(diabetesPercentaje)
+                    percentajePaleteText = getPercentajePaletteText(diabetesPercentaje)
+
+                    diabetesBase = alt.Chart(diabetesPercentajeSource).encode(
+                        theta=alt.Theta("value:N").stack(True),
+                        color=alt.Color("category:N", legend=None, scale=alt.Scale(range=percentajePalete))
                     )
 
+
+                    text = alt.Chart(diabetesPercentajeSource).mark_text(fontSize=30).encode(
+                        text="text:N",
+                        color=alt.Color("text:N", legend=None, scale=alt.Scale(range=percentajePaleteText))
+                    )
+
+                
                     diabetes_arc = diabetesBase.mark_arc(
                         radius=80,
-                        radius2=100
+                        radius2=100,
+
                     ).properties(title = alt.TitleParams("Diabetes", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
 
-                    text = alt.Chart(diabetesTextDataframe).mark_text(fontSize=25, color=getTextColor(textString), fontWeight="bold").encode(
-                        text="text:N"
-                    )
-
-                    st.altair_chart(diabetes_arc + text, use_container_width=True)
-
-
-
+                    st.altair_chart(diabetes_arc+text, use_container_width=True)
+                    
                 else:
                     st.text("Diabetes undiagnosed")
 
             #dislipedemiaPercentaje
             with CDislipidemia:
-                if dislipidemiaPercentaje > 0:
-                    dislipidemiaSourceText={"text": [getText(dislipidemiaPercentaje, diagnosed[1])]}
-                    textString= dislipidemiaSourceText["text"][0]
-                    nodislipidemiaPercentaje = 1-dislipidemiaPercentaje
-                    dislipidemiaSource = {"category": ["dislipidemia", "nodislipidemia"], "value": [dislipidemiaPercentaje, nodislipidemiaPercentaje]}
-                    dislipidemiaDataframe = pd.DataFrame(dislipidemiaSource) 
-                    dislipidemiaTextDataframe= pd.DataFrame(dislipidemiaSourceText)
-                    percentajePalete = getPercentajePalette(dislipidemiaPercentaje, textString)
+                if dislipedemiaPercentaje > 0:
+                    nodislipedemiaPercentaje = 1-dislipedemiaPercentaje
+                    dislipedemiaPercentajeSource = pd.DataFrame({"category": ["dislipidemia", "noDislipidemia"], "value": [dislipedemiaPercentaje, nodislipedemiaPercentaje]})
 
-                    dislipidemiaBase = alt.Chart(dislipidemiaDataframe).encode(
+                    percentajePalete = getPercentajePalette(dislipedemiaPercentaje)
+
+                    dislipidemiaBase = alt.Chart(dislipedemiaPercentajeSource).encode(
                         alt.Theta("value:Q").stack(True),
                         alt.Color("category:N", legend=None, scale=alt.Scale(range=percentajePalete))
+                    )
+
+                    text = dislipidemiaBase.mark_text(radius=0, size = 50).encode(text=alt.Text("value:Q", format=".0%"), ).transform_filter(
+                        alt.datum.category=="dislipidemia",
                     )
 
                     dislipidemia_arc = dislipidemiaBase.mark_arc(
@@ -415,61 +374,52 @@ if len(st.session_state.patients_list)>0:
                         radius2=100
                     ).properties(title = alt.TitleParams("Dislipidemia", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
 
-                    text = alt.Chart(dislipidemiaTextDataframe).mark_text(fontSize=25, color=getTextColor(textString), fontWeight="bold").encode(
-                        text="text:N"
-                    )
-
                     st.altair_chart(dislipidemia_arc + text, use_container_width=True)
-
                 else:
-                    st.text("dislipidemia undiagnosed")
+                    st.text("Dislipidemia undiagnosed")
 
             #obesityPercentaje
             with CObesity:
                 if obesityPercentaje > 0:
-                    obesitySourceText={"text": [getText(obesityPercentaje, diagnosed[2])]}
-                    textString= obesitySourceText["text"][0]
                     noobesityPercentaje = 1-obesityPercentaje
-                    obesitySource = {"category": ["obesity", "xnoobesity"], "value": [obesityPercentaje, noobesityPercentaje]}
-                    obesityDataframe = pd.DataFrame(obesitySource) 
-                    obesityTextDataframe= pd.DataFrame(obesitySourceText)
-                    percentajePalete = getPercentajePalette(obesityPercentaje, textString)
+                    obesityPercentajeSource = pd.DataFrame({"category": ["Obesity", "noObesity"], "value": [obesityPercentaje, noobesityPercentaje]})
 
-                    obesityBase = alt.Chart(obesityDataframe).encode(
+                    percentajePalete = getPercentajePalette(obesityPercentaje)
+
+                    obesityBase = alt.Chart(obesityPercentajeSource).encode(
                         alt.Theta("value:Q").stack(True),
                         alt.Color("category:N", legend=None, scale=alt.Scale(range=percentajePalete))
+                    )
+
+                    text = obesityBase.mark_text(radius=0, size = 50).encode(text=alt.Text("value:Q", format=".0%"), ).transform_filter(
+                        alt.datum.category=="Obesity",
                     )
 
                     obesity_arc = obesityBase.mark_arc(
                         radius=80,
                         radius2=100
-                    ).properties(title = alt.TitleParams("obesity", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
-
-                    text = alt.Chart(obesityTextDataframe).mark_text(fontSize=25, color=getTextColor(textString), fontWeight="bold").encode(
-                        text="text:N"
-                    )
+                    ).properties(title = alt.TitleParams("Obesity", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
 
                     st.altair_chart(obesity_arc + text, use_container_width=True)
 
                 else:
-                    st.text("obesity undiagnosed")
-                
-                
-            st.html("<div style='position: absolute !important; top:-550px !important; '>")
+                    st.text("Obesity undiagnosed")
+
             # nashPercentaje
             with CNash:
                 if nashPercentaje > 0:
-                    nashSourceText={"text": [getText(nashPercentaje, diagnosed[3])]}
-                    textString= nashSourceText["text"][0]
                     nonashPercentaje = 1-nashPercentaje
-                    nashSource = {"category": ["nash", "nonash"], "value": [nashPercentaje, nonashPercentaje]}
-                    nashDataframe = pd.DataFrame(nashSource) 
-                    nashTextDataframe= pd.DataFrame(nashSourceText)
-                    percentajePalete = getPercentajePalette(nashPercentaje, textString)
+                    nashPercentajeSource = pd.DataFrame({"category": ["nash", "noNash"], "value": [nashPercentaje, nonashPercentaje]})
 
-                    nashBase = alt.Chart(nashDataframe).encode(
+                    percentajePalete = getPercentajePalette(nashPercentaje)
+
+                    nashBase = alt.Chart(nashPercentajeSource).encode(
                         alt.Theta("value:Q").stack(True),
                         alt.Color("category:N", legend=None, scale=alt.Scale(range=percentajePalete))
+                    )
+
+                    text = nashBase.mark_text(radius=0, size = 50).encode(text=alt.Text("value:Q", format=".0%"), ).transform_filter(
+                        alt.datum.category=="nash",
                     )
 
                     nash_arc = nashBase.mark_arc(
@@ -477,75 +427,61 @@ if len(st.session_state.patients_list)>0:
                         radius2=100
                     ).properties(title = alt.TitleParams("Nash", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
 
-                    text = alt.Chart(nashTextDataframe).mark_text(fontSize=25, color=getTextColor(textString), fontWeight="bold").encode(
-                        text="text:N"
-                    )
-
                     st.altair_chart(nash_arc + text, use_container_width=True)
-
                 else:
-                    st.text("nash undiagnosed")
-            
+                    st.text("Nash undiagnosed")
+
             # kidneyDiseasePercentaje
             with CKidney:
                 if kidneyDiseasePercentaje > 0:
-                    kidneyDiseaseSourceText={"text": [getText(kidneyDiseasePercentaje, diagnosed[4])]}
-                    textString= kidneyDiseaseSourceText["text"][0]
                     nokidneyDiseasePercentaje = 1-kidneyDiseasePercentaje
-                    kidneyDiseaseSource = {"category": ["kidneyDisease", "nokidneyDisease"], "value": [kidneyDiseasePercentaje, nokidneyDiseasePercentaje]}
-                    kidneyDiseaseDataframe = pd.DataFrame(kidneyDiseaseSource) 
-                    kidneyDiseaseTextDataframe= pd.DataFrame(kidneyDiseaseSourceText)
-                    percentajePalete = getPercentajePalette(kidneyDiseasePercentaje, textString)
+                    kidneyDiseasePercentajeSource = pd.DataFrame({"category": ["kidneyDisease", "noKidneyDisease"], "value": [kidneyDiseasePercentaje, nokidneyDiseasePercentaje]})
 
-                    kidneyDiseaseBase = alt.Chart(kidneyDiseaseDataframe).encode(
+                    percentajePalete = getPercentajePalette(kidneyDiseasePercentaje)
+
+                    kidneyBase = alt.Chart(kidneyDiseasePercentajeSource).encode(
                         alt.Theta("value:Q").stack(True),
                         alt.Color("category:N", legend=None, scale=alt.Scale(range=percentajePalete))
                     )
 
-                    kidneyDisease_arc = kidneyDiseaseBase.mark_arc(
-                        radius=80,
-                        radius2=100
-                    ).properties(title = alt.TitleParams("KidneyDisease", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
-
-                    text = alt.Chart(kidneyDiseaseTextDataframe).mark_text(fontSize=25, color=getTextColor(textString), fontWeight="bold").encode(
-                        text="text:N"
+                    text = kidneyBase.mark_text(radius=0, size = 50).encode(text=alt.Text("value:Q", format=".0%"), ).transform_filter(
+                        alt.datum.category=="kidneyDisease",
                     )
 
-                    st.altair_chart(kidneyDisease_arc + text, use_container_width=True)
+                    kidney_arc = kidneyBase.mark_arc(
+                        radius=80,
+                        radius2=100
+                    ).properties(title = alt.TitleParams("Kidney disease", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
 
+                    st.altair_chart(kidney_arc + text, use_container_width=True)
                 else:
-                    st.text("kidneyDisease undiagnosed")
+                    st.text("Kidney disease undiagnosed")
 
             # heartDiseasePercentaje
             with CHeart:
                 if heartDiseasePercentaje > 0:
-                    heartDiseaseSourceText={"text": [getText(heartDiseasePercentaje, diagnosed[5])]}
-                    textString= heartDiseaseSourceText["text"][0]
                     noheartDiseasePercentaje = 1-heartDiseasePercentaje
-                    heartDiseaseSource = {"category": ["HeartDisease", "noheartDisease"], "value": [heartDiseasePercentaje, noheartDiseasePercentaje]}
-                    heartDiseaseDataframe = pd.DataFrame(heartDiseaseSource) 
-                    heartDiseaseTextDataframe= pd.DataFrame(heartDiseaseSourceText)
-                    percentajePalete = getPercentajePalette(heartDiseasePercentaje, textString)
+                    heartDiseasePercentajeSource = pd.DataFrame({"category": ["heartDisease", "noHeartDisease"], "value": [heartDiseasePercentaje, noheartDiseasePercentaje]})
 
-                    heartDiseaseBase = alt.Chart(heartDiseaseDataframe).encode(
+                    percentajePalete = getPercentajePalette(heartDiseasePercentaje)
+
+                    heartBase = alt.Chart(heartDiseasePercentajeSource).encode(
                         alt.Theta("value:Q").stack(True),
                         alt.Color("category:N", legend=None, scale=alt.Scale(range=percentajePalete))
                     )
 
-                    heartDisease_arc = heartDiseaseBase.mark_arc(
-                        radius=80,
-                        radius2=100
-                    ).properties(title = alt.TitleParams("heartDisease", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
-
-                    text = alt.Chart(heartDiseaseTextDataframe).mark_text(fontSize=25, color=getTextColor(textString), fontWeight="bold").encode(
-                        text="text:N"
+                    text = heartBase.mark_text(radius=0, size = 50).encode(text=alt.Text("value:Q", format=".0%"), ).transform_filter(
+                        alt.datum.category=="heartDisease",
                     )
 
-                    st.altair_chart(heartDisease_arc + text, use_container_width=True)
+                    heart_arc = heartBase.mark_arc(
+                        radius=80,
+                        radius2=100
+                    ).properties(title = alt.TitleParams("Heart disease", anchor='middle', frame='bounds', dy= 70, fontWeight="bold"))
 
+                    st.altair_chart(heart_arc + text, use_container_width=True)
                 else:
-                    st.text("heartDisease undiagnosed")
-                st.html("</div>")
+                    st.text("Heart disease undiagnosed")
 
     # ANALYSIS_INFO
     analisisList = []
@@ -648,7 +584,7 @@ if len(st.session_state.patients_list)>0:
                     y=alt.Y("value:Q"),
                     color=alt.Color("type:N", scale=alt.Scale(range=palette))
                 )
-                st.html("</br></br></br><p>Blood Pressure</p>")
+                st.html("<p>Blood Pressure</p></br></br></br>")
                 st.altair_chart(graf0.properties(width= "container"), use_container_width=True)
             else:
                 st.markdown("<div style='text-align: center; padding-top: 150px;'>No pressure data</div>", unsafe_allow_html=True)
