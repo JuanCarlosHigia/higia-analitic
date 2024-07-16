@@ -54,7 +54,7 @@ with st.sidebar:
         maxYear=currentyear- st.session_state.Age[1]
 
          # Init Status
-        pipeline_status = pipeline.getTotalPatients()
+        pipeline_status = pipeline.getPipeLineStatus()
         if len(pipeline_status) == 0:
             totalList = bbdd.getTotalLists(st.session_state.patient_id_regex,-1, 0, st.session_state.nationality, st.session_state.source, minYear, maxYear, st.session_state.gender)
             nationalites= set()
